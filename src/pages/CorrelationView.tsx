@@ -18,22 +18,42 @@ const periodOptions = [
   { value: 'post2000', label: '2000年后', color: colors.warning },
 ];
 
+const periodToRange = (p: string): [number, number] => {
+  switch (p) {
+    case 'pre1950': return [1850, 1950];
+    case 'post1950': return [1950, 2024];
+    case 'post2000': return [2000, 2024];
+    default: return [1850, 2024];
+  }
+};
+const rangeToPeriod = (r: [number, number]): string => {
+  if (r[0] === 1850 && r[1] === 1950) return 'pre1950';
+  if (r[0] === 1950 && r[1] === 2024) return 'post1950';
+  if (r[0] === 2000 && r[1] === 2024) return 'post2000';
+  return 'all';
+};
+
 export const CorrelationView: React.FC = () => {
   const chartRef = useRef<HTMLDivElement>(null);
-  const [selectedPeriod, setSelectedPeriod] = React.useState('all');
+  const { viewConfigs, updateCorrelationConfig } = useAppStore();
+  const [selectedPeriod, setSelectedPeriod] = React.useState<string>(
+    rangeToPeriod(viewConfigs.correlation.timeRange)
+  );
 
   const yearRange = useMemo(() => {
-    switch (selectedPeriod) {
-      case 'pre1950': return [1850, 1950] as [number, number];
-      case 'post1950': return [1950, 2024] as [number, number];
-      case 'post2000': return [2000, 2024] as [number, number];
-      default: return undefined;
-    }
-  }, [selectedPeriod]);
+    const base = periodToRange(selectedPeriod);
+    updateCorrelationConfig({ timeRange: base });
+    return base;
+  }, [selectedPeriod, updateCorrelationConfig]);
 
   const correlationResult = useMemo(() => {
-    return calculateCorrelation(climateData, 'co2', 'temperature', yearRange);
-  }, [yearRange]);
+    return calculateCorrelation(
+      climateData,
+      viewConfigs.correlation.xMetric as keyof typeof climateData[number],
+      viewConfigs.correlation.yMetric as keyof typeof climateData[number],
+      yearRange
+    );
+  }, [yearRange, viewConfigs.correlation.xMetric, viewConfigs.correlation.yMetric]);
 
   const getCorrelationStrength = (r: number): { label: string; color: string } => {
     const absR = Math.abs(r);

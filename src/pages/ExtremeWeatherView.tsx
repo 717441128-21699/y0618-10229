@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CloudLightning, AlertTriangle, TrendingUp, Info } from 'lucide-react';
 import { BarChart } from '../components/charts/BarChart';
@@ -7,12 +7,20 @@ import { ExportButton } from '../components/ui/ExportButton';
 import { StatCard } from '../components/ui/StatCard';
 import { extremeWeatherData, extremeWeatherTypes } from '../data/mockData/extremeWeather';
 import { colors } from '../utils/colors';
+import { useAppStore } from '../store/useAppStore';
 
 export const ExtremeWeatherView: React.FC = () => {
   const chartRef = useRef<HTMLDivElement>(null);
-  const [selectedTypes, setSelectedTypes] = React.useState<string[]>([
-    'heatwaves', 'heavyRain', 'droughts'
-  ]);
+  const { viewConfigs, updateExtremeWeatherConfig } = useAppStore();
+  const [selectedTypes, setSelectedTypes] = React.useState<string[]>(
+    viewConfigs.extremeWeather.selectedTypes.length > 0
+      ? viewConfigs.extremeWeather.selectedTypes
+      : ['heatwaves', 'heavyRain', 'droughts']
+  );
+
+  useEffect(() => {
+    updateExtremeWeatherConfig({ selectedTypes });
+  }, [selectedTypes, updateExtremeWeatherConfig]);
 
   const typeOptions = extremeWeatherTypes.map(type => ({
     value: type.key,

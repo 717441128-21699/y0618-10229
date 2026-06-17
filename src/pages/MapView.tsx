@@ -8,11 +8,17 @@ import { StatCard } from '../components/ui/StatCard';
 import { mapYears } from '../data/mockData/mapData';
 import { regionTemperatures } from '../data/mockData/regionTemps';
 import { colors } from '../utils/colors';
+import { useAppStore } from '../store/useAppStore';
 
 export const MapView: React.FC = () => {
   const chartRef = useRef<HTMLDivElement>(null);
-  const [selectedYear, setSelectedYear] = useState(2024);
+  const { viewConfigs, updateMapConfig } = useAppStore();
+  const [selectedYear, setSelectedYear] = useState<number>(viewConfigs.map.selectedYear);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    updateMapConfig({ selectedYear });
+  }, [selectedYear, updateMapConfig]);
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
