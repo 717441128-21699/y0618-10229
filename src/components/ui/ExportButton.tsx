@@ -1,0 +1,130 @@
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Download, Image, FileText, FileSpreadsheet, Check } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { colors } from '../../utils/colors';
+
+interface ExportButtonProps {
+  targetRef: React.RefObject<HTMLElement> | (() => HTMLElement | null);
+  title?: string;
+  className?: string;
+}
+
+export const ExportButton: React.FC<ExportButtonProps> = ({
+  targetRef,
+  title = 'chart',
+  className = '',
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportSuccess, setExportSuccess] = useState(false);
+
+  const getTargetElement = (): HTMLElement | null => {
+    if (typeof targetRef === 'function') {
+      return targetRef();
+    }
+    return targetRef.current;
+  };
+
+  const exportAsPNG = async () => {
+    const element = getTargetElement();
+    if (!element) return;
+
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#0F172A',
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+      
+      const link = document.createElement('a');
+      link.download = `${title}-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 2000);
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setExporting(false);
+      setIsOpen(false);
+    }
+  };
+
+  const exportAsSVG = () => {
+    const element = getTargetElement();
+    if (!element) return;
+
+    setExporting(true);
+    const svgElements = element.querySelectorAll('svg');
+    if (svgElements.length > 0) {
+      const svgData = new XMLSerializer().serializeToString(svgElements[0]);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const link = document.createElement('a');
+      link.download = `${title}-${new Date().toISOString().split('T')[0]}.svg`;
+      link.href = URL.createObjectURL(svgBlob);
+      link.click();
+      
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 2000);
+    }
+    setExporting(false);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className={`relative ${className}`}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm font-medium transition-all duration-200 hover:scale-105"
+      >
+        {exportSuccess ? (
+          <>
+            <Check size={16} className={colors.forest} />
+            <span>导出成功</span>
+          </>
+        ) : exporting ? (
+          <>
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span>导出中...</span>
+          </>
+        ) : (
+          <>
+            <Download size={16} />
+            <span>导出图表</span>
+          </>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="absolute right-0 top-full mt-2 z-50 min-w-[180px] rounded-xl bg-slate-800/95 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden"
+          >
+            <button
+              onClick={exportAsPNG}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+            >
+              <Image size={16} className={colors.accent} />
+              <span>导出为 PNG 图片</span>
+            </button>
+            <button
+              onClick={exportAsSVG}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors border-t border-white/5"
+            >
+              <FileText size={16} className={colors.glacier} />
+              <span>导出为 SVG 矢量图</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
