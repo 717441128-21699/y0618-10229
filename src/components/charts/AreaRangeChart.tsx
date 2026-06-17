@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
 import { chartBaseConfig, axisConfig, tooltipConfig, legendConfig, targetLineConfig } from '../../utils/chartConfig';
@@ -12,17 +12,35 @@ interface AreaRangeChartProps {
   chartRef?: React.RefObject<HTMLDivElement>;
 }
 
+const interpolateValue = (data: Array<{ year: number; value: number }>, year: number): number | null => {
+  if (data.length === 0) return null;
+  
+  if (year <= data[0].year) return data[0].value;
+  if (year >= data[data.length - 1].year) return data[data.length - 1].value;
+  
+  for (let i = 0; i < data.length - 1; i++) {
+    if (year >= data[i].year && year <= data[i + 1].year) {
+      const ratio = (year - data[i].year) / (data[i + 1].year - data[i].year);
+      return data[i].value + ratio * (data[i + 1].value - data[i].value);
+    }
+  }
+  
+  return null;
+};
+
 export const AreaRangeChart: React.FC<AreaRangeChartProps> = ({
   scenarios,
   selectedScenarios,
   chartRef,
 }) => {
+  const echartsRef = useRef<ReactECharts | null>(null);
+
   const option = useMemo<EChartsOption>(() => {
     const filteredScenarios = scenarios.filter(s => selectedScenarios.includes(s.scenarioCode));
     
     const historicalData = climateData
       .filter(d => d.year >= 1950)
-      .map(d => [d.year, d.temperature]);
+      .map(d => [d.year, d.temperature] as [number, number]);
 
     const series: any[] = [
       {
@@ -39,7 +57,7 @@ export const AreaRangeChart: React.FC<AreaRangeChartProps> = ({
         },
         areaStyle: {
           color: {
-            type: 'linear',
+            type: 'linear' as const,
             x: 0,
             y: 0,
             x2: 0,
@@ -51,42 +69,45 @@ export const AreaRangeChart: React.FC<AreaRangeChartProps> = ({
           },
         },
         showSymbol: false,
+        z: 10,
       },
     ];
 
-    filteredScenarios.forEach(scenario => {
-      const midData = scenario.data.map(d => [d.year, d.temperature]);
-      const upperData = scenario.data.map(d => [d.year, d.upperBound]);
-      const lowerData = scenario.data.map(d => [d.year, d.lowerBound]);
+    filteredScenarios.forEach((scenario) => {
+      const stackId = `stack_${scenario.scenarioCode}`;
+      
+      const lowerData = scenario.data.map(d => [d.year, d.lowerBound] as [number, number]);
+      const rangeData = scenario.data.map(d => [d.year, d.upperBound - d.lowerBound] as [number, number]);
+      const midData = scenario.data.map(d => [d.year, d.temperature] as [number, number]);
 
       series.push(
         {
-          name: `${scenario.scenario} - 上限`,
+          name: `${scenario.scenario}_lower`,
           type: 'line',
-          data: upperData,
-          lineStyle: {
-            width: 0,
-          },
-          stack: scenario.scenarioCode,
+          data: lowerData,
+          stack: stackId,
+          lineStyle: { width: 0 },
           showSymbol: false,
           color: 'transparent',
+          areaStyle: { opacity: 0 },
+          z: 1,
+          emphasis: { disabled: true },
+          tooltip: { show: false },
         },
         {
-          name: `${scenario.scenario} - 预测区间`,
+          name: `${scenario.scenario}_range`,
           type: 'line',
-          data: lowerData.map((d, i) => [d[0], upperData[i][1] - d[1]]),
-          lineStyle: {
-            width: 0,
-          },
-          stack: scenario.scenarioCode,
+          data: rangeData,
+          stack: stackId,
+          lineStyle: { width: 0 },
           showSymbol: false,
           color: 'transparent',
           areaStyle: {
-            color: `${scenario.color}25`,
+            color: `${scenario.color}30`,
           },
-          tooltip: {
-            show: false,
-          },
+          z: 2,
+          emphasis: { disabled: true },
+          tooltip: { show: false },
         },
         {
           name: scenario.scenario,
@@ -96,14 +117,15 @@ export const AreaRangeChart: React.FC<AreaRangeChartProps> = ({
           lineStyle: {
             width: 3,
             color: scenario.color,
-            type: 'dashed',
+            type: 'dashed' as const,
           },
           itemStyle: {
             color: scenario.color,
           },
           showSymbol: false,
+          z: 5,
           emphasis: {
-            focus: 'series',
+            focus: 'series' as const,
           },
         }
       );
@@ -118,29 +140,62 @@ export const AreaRangeChart: React.FC<AreaRangeChartProps> = ({
       ...chartBaseConfig,
       tooltip: {
         ...tooltipConfig,
-        trigger: 'axis',
+        trigger: 'axis' as const,
         axisPointer: {
-          type: 'cross',
+          type: 'cross' as const,
+          snap: false,
         },
         formatter: (params: any) => {
-          if (!Array.isArray(params)) return '';
-          const year = params[0].axisValue;
-          let html = `<div class="font-semibold mb-2">${year}年</div>`;
+          if (!Array.isArray(params) || params.length === 0) return '';
           
-          params.forEach((param: any) => {
-            if (param.seriesName.includes('上限') || param.seriesName.includes('区间')) return;
-            
-            const scenario = filteredScenarios.find(s => s.scenario === param.seriesName);
-            const color = scenario?.color || colors.accent;
-            
+          const year = Math.round(params[0].axisValue);
+          let html = `<div class="font-semibold mb-2 text-white">${year}年</div>`;
+          
+          const historicalPoint = climateData.find(d => d.year === year);
+          if (historicalPoint) {
             html += `
               <div class="flex items-center gap-2 py-1">
-                <span class="w-2 h-2 rounded-full" style="background-color: ${color}"></span>
-                <span class="text-gray-400">${param.seriesName}:</span>
-                <span class="font-mono font-medium" style="color: ${color}">+${param.value.toFixed(2)}°C</span>
+                <span class="w-2 h-2 rounded-full" style="background-color: ${colors.accent}"></span>
+                <span class="text-gray-400">历史观测:</span>
+                <span class="font-mono font-medium" style="color: ${colors.accent}">+${historicalPoint.temperature.toFixed(2)}°C</span>
               </div>
             `;
+          }
+          
+          filteredScenarios.forEach(scenario => {
+            const midPoints = scenario.data.map(d => ({ year: d.year, value: d.temperature }));
+            const lowerPoints = scenario.data.map(d => ({ year: d.year, value: d.lowerBound }));
+            const upperPoints = scenario.data.map(d => ({ year: d.year, value: d.upperBound }));
+            
+            const midVal = interpolateValue(midPoints, year);
+            const lowerVal = interpolateValue(lowerPoints, year);
+            const upperVal = interpolateValue(upperPoints, year);
+            
+            if (midVal !== null && lowerVal !== null && upperVal !== null) {
+              html += `
+                <div class="py-1 border-t border-white/10 mt-1 pt-1">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full" style="background-color: ${scenario.color}"></span>
+                    <span class="text-gray-300 font-medium">${scenario.scenario}</span>
+                  </div>
+                  <div class="ml-4 text-xs space-y-0.5 mt-1">
+                    <div class="flex justify-between gap-4">
+                      <span class="text-gray-500">中值:</span>
+                      <span class="font-mono" style="color: ${scenario.color}">+${midVal.toFixed(2)}°C</span>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                      <span class="text-gray-500">区间:</span>
+                      <span class="font-mono text-gray-400">+${lowerVal.toFixed(2)} ~ +${upperVal.toFixed(2)}°C</span>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }
           });
+          
+          if (year > 2024 && filteredScenarios.length === 0) {
+            html += `<div class="text-gray-500 text-sm mt-2">请选择至少一个情景</div>`;
+          }
           
           return html;
         },
@@ -164,7 +219,7 @@ export const AreaRangeChart: React.FC<AreaRangeChartProps> = ({
         max: 2100,
         axisLabel: {
           ...axisConfig.xAxis.axisLabel,
-          formatter: (value: number) => `${value}`,
+          formatter: (value: number) => `${Math.round(value)}`,
         },
       },
       yAxis: {
@@ -190,9 +245,26 @@ export const AreaRangeChart: React.FC<AreaRangeChartProps> = ({
     };
   }, [scenarios, selectedScenarios]);
 
+  const setChartRef = (e: ReactECharts | null) => {
+    echartsRef.current = e;
+  };
+
+  useEffect(() => {
+    if (chartRef && 'current' in chartRef && echartsRef.current) {
+      const instance = echartsRef.current.getEchartsInstance();
+      if (instance) {
+        const dom = instance.getDom();
+        if (dom instanceof HTMLElement && chartRef.current !== dom) {
+          (chartRef as React.MutableRefObject<HTMLElement>).current = dom;
+        }
+      }
+    }
+  }, [chartRef]);
+
   return (
     <div ref={chartRef} className="w-full h-full min-h-[500px]">
       <ReactECharts
+        ref={setChartRef}
         option={option}
         style={{ width: '100%', height: '100%', minHeight: '500px' }}
         notMerge={true}

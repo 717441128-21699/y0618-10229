@@ -1,4 +1,5 @@
 import type { RegionTemperature } from '../types';
+import { createSeededRandom } from '../../utils/seededRandom';
 
 const regionData: Omit<RegionTemperature, 'temperatureAnomalies'>[] = [
   { regionCode: 'CN', regionName: '中国', latitude: 35.8617, longitude: 104.1954 },
@@ -23,7 +24,8 @@ const regionData: Omit<RegionTemperature, 'temperatureAnomalies'>[] = [
   { regionCode: 'NZ', regionName: '新西兰', latitude: -40.9006, longitude: 174.8860 },
 ];
 
-const generateRegionTemperatureAnomalies = (latitude: number): Record<number, number> => {
+const generateRegionTemperatureAnomalies = (latitude: number, seedOffset: number): Record<number, number> => {
+  const rng = createSeededRandom(9999 + seedOffset);
   const anomalies: Record<number, number> = {};
   const latFactor = Math.abs(latitude) / 90;
   const amplification = 1 + latFactor * 1.2;
@@ -37,7 +39,7 @@ const generateRegionTemperatureAnomalies = (latitude: number): Record<number, nu
     
     baseAnomaly *= amplification;
     
-    const noise = (Math.random() - 0.5) * 0.2;
+    const noise = rng.noise(0.2);
     
     anomalies[year] = Math.round((baseAnomaly + noise) * 100) / 100;
   }
@@ -45,9 +47,9 @@ const generateRegionTemperatureAnomalies = (latitude: number): Record<number, nu
   return anomalies;
 };
 
-export const regionTemperatures: RegionTemperature[] = regionData.map(region => ({
+export const regionTemperatures: RegionTemperature[] = regionData.map((region, index) => ({
   ...region,
-  temperatureAnomalies: generateRegionTemperatureAnomalies(region.latitude),
+  temperatureAnomalies: generateRegionTemperatureAnomalies(region.latitude, index),
 }));
 
 export const getRegionTemperature = (regionCode: string): RegionTemperature | undefined => {

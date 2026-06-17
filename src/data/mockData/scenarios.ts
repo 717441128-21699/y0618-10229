@@ -1,34 +1,5 @@
 import type { ScenarioPrediction } from '../types';
 
-const generateScenarioData = (
-  baseTemp: number,
-  growthRate: number,
-  uncertainty: number,
-  startYear: number = 2024,
-  endYear: number = 2100
-): Array<{ year: number; temperature: number; lowerBound: number; upperBound: number }> => {
-  const data = [];
-  let temp = 1.2;
-
-  for (let year = startYear; year <= endYear; year++) {
-    const yearsSinceStart = year - startYear;
-    const randomness = (Math.random() - 0.5) * 0.1;
-    
-    const temp = baseTemp + growthRate * (yearsSinceStart / 10) + randomness;
-    const lowerBound = temp - uncertainty * (yearsSinceStart / 100);
-    const upperBound = temp + uncertainty * (yearsSinceStart / 100);
-
-    data.push({
-      year,
-      temperature: Math.round(temp * 100) / 100,
-      lowerBound: Math.round(lowerBound * 100) / 100,
-      upperBound: Math.round(upperBound * 100) / 100,
-    });
-  }
-
-  return data;
-};
-
 export const scenarioPredictions: ScenarioPrediction[] = [
   {
     scenario: 'SSP1-2.6',

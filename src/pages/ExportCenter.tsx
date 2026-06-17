@@ -6,6 +6,12 @@ import { climateData } from '../data/mockData/climateGenerator';
 import { regionTemperatures } from '../data/mockData/regionTemps';
 import { extremeWeatherData } from '../data/mockData/extremeWeather';
 import { scenarioPredictions } from '../data/mockData/scenarios';
+import {
+  exportClimateChartAsPNG,
+  exportRegionChartAsPNG,
+  exportExtremeWeatherChartAsPNG,
+  exportScenarioChartAsPNG,
+} from '../utils/chartExporter';
 import { Download, FileText, Image, Table, BarChart3, Map, TrendingUp, CloudRain, Globe, ThermometerSun } from 'lucide-react';
 
 interface ExportItem {
@@ -16,6 +22,7 @@ interface ExportItem {
   data: any[];
   formats: string[];
   color: string;
+  exportPNG: (filename: string) => void;
 }
 
 export const ExportCenter: React.FC = () => {
@@ -30,6 +37,7 @@ export const ExportCenter: React.FC = () => {
       data: climateData,
       formats: ['CSV', 'JSON', 'PNG'],
       color: colors.accent,
+      exportPNG: exportClimateChartAsPNG,
     },
     {
       id: 'regions',
@@ -39,6 +47,7 @@ export const ExportCenter: React.FC = () => {
       data: regionTemperatures,
       formats: ['CSV', 'JSON', 'PNG'],
       color: colors.forest,
+      exportPNG: exportRegionChartAsPNG,
     },
     {
       id: 'extreme',
@@ -48,6 +57,7 @@ export const ExportCenter: React.FC = () => {
       data: extremeWeatherData,
       formats: ['CSV', 'JSON', 'PNG'],
       color: colors.warning,
+      exportPNG: exportExtremeWeatherChartAsPNG,
     },
     {
       id: 'scenarios',
@@ -57,6 +67,7 @@ export const ExportCenter: React.FC = () => {
       data: scenarioPredictions,
       formats: ['CSV', 'JSON', 'PNG'],
       color: colors.scenarios['SSP2-4.5'],
+      exportPNG: exportScenarioChartAsPNG,
     },
   ];
 
@@ -84,7 +95,49 @@ export const ExportCenter: React.FC = () => {
     },
   };
 
-  const exportAsCSV = (data: any[], filename: string) => {
+  const flattenRegionData = () => {
+    const result: any[] = [];
+    regionTemperatures.forEach(region => {
+      Object.entries(region.temperatureAnomalies).forEach(([year, temp]) => {
+        result.push({
+          regionCode: region.regionCode,
+          regionName: region.regionName,
+          latitude: region.latitude,
+          longitude: region.longitude,
+          year: parseInt(year),
+          temperatureAnomaly: temp,
+        });
+      });
+    });
+    return result;
+  };
+
+  const flattenScenarioData = () => {
+    const result: any[] = [];
+    scenarioPredictions.forEach(scenario => {
+      scenario.data.forEach(d => {
+        result.push({
+          scenario: scenario.scenario,
+          scenarioCode: scenario.scenarioCode,
+          year: d.year,
+          temperature: d.temperature,
+          lowerBound: d.lowerBound,
+          upperBound: d.upperBound,
+        });
+      });
+    });
+    return result;
+  };
+
+  const exportAsCSV = (item: ExportItem, filename: string) => {
+    let data = item.data;
+    
+    if (item.id === 'regions') {
+      data = flattenRegionData();
+    } else if (item.id === 'scenarios') {
+      data = flattenScenarioData();
+    }
+    
     if (data.length === 0) return;
     
     const headers = Object.keys(data[0]).join(',');
@@ -102,7 +155,15 @@ export const ExportCenter: React.FC = () => {
     link.click();
   };
 
-  const exportAsJSON = (data: any[], filename: string) => {
+  const exportAsJSON = (item: ExportItem, filename: string) => {
+    let data = item.data;
+    
+    if (item.id === 'regions') {
+      data = flattenRegionData();
+    } else if (item.id === 'scenarios') {
+      data = flattenScenarioData();
+    }
+    
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const link = document.createElement('a');
@@ -119,13 +180,15 @@ export const ExportCenter: React.FC = () => {
       const filename = `${item.name}_${timestamp}`;
       
       if (format === 'CSV') {
-        exportAsCSV(item.data, filename);
+        exportAsCSV(item, filename);
       } else if (format === 'JSON') {
-        exportAsJSON(item.data, filename);
+        exportAsJSON(item, filename);
+      } else if (format === 'PNG') {
+        item.exportPNG(filename);
       }
       
       setExporting(null);
-    }, 500);
+    }, 300);
   };
 
   return (

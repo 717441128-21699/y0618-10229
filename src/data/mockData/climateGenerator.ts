@@ -1,10 +1,8 @@
 import type { ClimateDataPoint } from '../types';
-
-const generateRandomNoise = (amplitude: number): number => {
-  return (Math.random() - 0.5) * 2 * amplitude;
-};
+import { createSeededRandom } from '../../utils/seededRandom';
 
 const generateClimateData = (): ClimateDataPoint[] => {
+  const rng = createSeededRandom(12345);
   const data: ClimateDataPoint[] = [];
   const startYear = 1850;
   const endYear = 2024;
@@ -12,28 +10,28 @@ const generateClimateData = (): ClimateDataPoint[] => {
   for (let year = startYear; year <= endYear; year++) {
     const yearsSinceIndustrial = year - 1850;
     
-    const preIndustrialTemp = -0.3 + generateRandomNoise(0.15);
+    const preIndustrialTemp = -0.3 + rng.noise(0.15);
     const tempTrend = yearsSinceIndustrial < 50 
       ? 0.004 * yearsSinceIndustrial 
       : 0.012 * (yearsSinceIndustrial - 50) + 0.2;
-    const temperature = preIndustrialTemp + tempTrend + generateRandomNoise(0.12);
+    const temperature = preIndustrialTemp + tempTrend + rng.noise(0.12);
 
-    const preIndustrialCO2 = 280 + generateRandomNoise(2);
+    const preIndustrialCO2 = 280 + rng.noise(2);
     const co2Trend = yearsSinceIndustrial < 100
       ? 0.25 * yearsSinceIndustrial
       : 0.8 * (yearsSinceIndustrial - 100) + 25;
-    const co2 = preIndustrialCO2 + co2Trend + generateRandomNoise(0.8);
+    const co2 = preIndustrialCO2 + co2Trend + rng.noise(0.8);
 
     const seaLevelTrend = yearsSinceIndustrial < 100
       ? 0.012 * yearsSinceIndustrial
       : 0.04 * (yearsSinceIndustrial - 100) + 1.2;
-    const seaLevel = seaLevelTrend + generateRandomNoise(3);
+    const seaLevel = seaLevelTrend + rng.noise(3);
 
     const maxSeaIce = 7.5;
     const seaIceDecline = yearsSinceIndustrial < 100
       ? 0.003 * yearsSinceIndustrial
       : 0.012 * (yearsSinceIndustrial - 100) + 0.3;
-    const seaIce = Math.max(3.5, maxSeaIce - seaIceDecline + generateRandomNoise(0.15));
+    const seaIce = Math.max(3.5, maxSeaIce - seaIceDecline + rng.noise(0.15));
 
     data.push({
       year,

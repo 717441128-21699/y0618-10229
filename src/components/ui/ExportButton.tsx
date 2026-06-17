@@ -1,23 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Image, FileText, FileSpreadsheet, Check } from 'lucide-react';
+import { Download, Image, FileText, Check } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import * as echarts from 'echarts';
 import { colors } from '../../utils/colors';
 
 interface ExportButtonProps {
   targetRef: React.RefObject<HTMLElement> | (() => HTMLElement | null);
   title?: string;
   className?: string;
+  showSVG?: boolean;
 }
 
 export const ExportButton: React.FC<ExportButtonProps> = ({
   targetRef,
   title = 'chart',
   className = '',
+  showSVG = true,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
+  const [supportsSVG, setSupportsSVG] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const getTargetElement = (): HTMLElement | null => {
     if (typeof targetRef === 'function') {
@@ -26,11 +31,53 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
     return targetRef.current;
   };
 
+  useEffect(() => {
+    const checkSVGSupport = () => {
+      const element = getTargetElement();
+      if (!element) return false;
+      
+      if (element.querySelector('svg')) {
+        return true;
+      }
+      
+      const chartInstance = echarts.getInstanceByDom(element);
+      if (chartInstance) {
+        return true;
+      }
+      
+      return false;
+    };
+    
+    const timer = setTimeout(() => {
+      setSupportsSVG(checkSVGSupport());
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [targetRef]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
   const exportAsPNG = async () => {
     const element = getTargetElement();
     if (!element) return;
 
     setExporting(true);
+    setIsOpen(false);
+    
     try {
       const canvas = await html2canvas(element, {
         backgroundColor: '#0F172A',
@@ -47,10 +94,76 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       setExportSuccess(true);
       setTimeout(() => setExportSuccess(false), 2000);
     } catch (error) {
-      console.error('Export failed:', error);
+      console.error('PNG export failed:', error);
     } finally {
       setExporting(false);
-      setIsOpen(false);
+    }
+  };
+
+  const exportEChartsAsSVG = (chartInstance: echarts.ECharts): boolean => {
+    try {
+      const option = chartInstance.getOption();
+      
+      const div = document.createElement('div');
+      div.style.width = `${chartInstance.getWidth()}px`;
+      div.style.height = `${chartInstance.getHeight()}px`;
+      div.style.position = 'absolute';
+      div.style.left = '-9999px';
+      div.style.top = '-9999px';
+      document.body.appendChild(div);
+      
+      const svgChart = echarts.init(div, undefined, { renderer: 'svg' });
+      svgChart.setOption(option);
+      
+      const svgElement = div.querySelector('svg');
+      if (!svgElement) {
+        svgChart.dispose();
+        document.body.removeChild(div);
+        return false;
+      }
+      
+      const svgData = new XMLSerializer().serializeToString(svgElement);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const link = document.createElement('a');
+      link.download = `${title}-${new Date().toISOString().split('T')[0]}.svg`;
+      link.href = URL.createObjectURL(svgBlob);
+      link.click();
+      
+      setTimeout(() => {
+        URL.revokeObjectURL(link.href);
+      }, 1000);
+      
+      svgChart.dispose();
+      document.body.removeChild(div);
+      
+      return true;
+    } catch (error) {
+      console.error('ECharts SVG export failed:', error);
+      return false;
+    }
+  };
+
+  const exportNativeSVG = (element: HTMLElement): boolean => {
+    try {
+      const svgElements = element.querySelectorAll('svg');
+      if (svgElements.length === 0) return false;
+      
+      const svgElement = svgElements[0];
+      const svgData = new XMLSerializer().serializeToString(svgElement);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const link = document.createElement('a');
+      link.download = `${title}-${new Date().toISOString().split('T')[0]}.svg`;
+      link.href = URL.createObjectURL(svgBlob);
+      link.click();
+      
+      setTimeout(() => {
+        URL.revokeObjectURL(link.href);
+      }, 1000);
+      
+      return true;
+    } catch (error) {
+      console.error('Native SVG export failed:', error);
+      return false;
     }
   };
 
@@ -59,31 +172,44 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
     if (!element) return;
 
     setExporting(true);
-    const svgElements = element.querySelectorAll('svg');
-    if (svgElements.length > 0) {
-      const svgData = new XMLSerializer().serializeToString(svgElements[0]);
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const link = document.createElement('a');
-      link.download = `${title}-${new Date().toISOString().split('T')[0]}.svg`;
-      link.href = URL.createObjectURL(svgBlob);
-      link.click();
-      
-      setExportSuccess(true);
-      setTimeout(() => setExportSuccess(false), 2000);
-    }
-    setExporting(false);
     setIsOpen(false);
+    
+    setTimeout(() => {
+      try {
+        let success = false;
+        
+        const chartInstance = echarts.getInstanceByDom(element);
+        if (chartInstance) {
+          success = exportEChartsAsSVG(chartInstance);
+        }
+        
+        if (!success) {
+          success = exportNativeSVG(element);
+        }
+        
+        if (success) {
+          setExportSuccess(true);
+          setTimeout(() => setExportSuccess(false), 2000);
+        }
+      } catch (error) {
+        console.error('SVG export failed:', error);
+      } finally {
+        setExporting(false);
+      }
+    }, 100);
   };
 
+  const displaySVG = showSVG && supportsSVG;
+
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className}`} ref={containerRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm font-medium transition-all duration-200 hover:scale-105"
       >
         {exportSuccess ? (
           <>
-            <Check size={16} className={colors.forest} />
+            <Check size={16} style={{ color: colors.forest }} />
             <span>导出成功</span>
           </>
         ) : exporting ? (
@@ -112,16 +238,18 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
               onClick={exportAsPNG}
               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
             >
-              <Image size={16} className={colors.accent} />
+              <Image size={16} style={{ color: colors.accent }} />
               <span>导出为 PNG 图片</span>
             </button>
-            <button
-              onClick={exportAsSVG}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors border-t border-white/5"
-            >
-              <FileText size={16} className={colors.glacier} />
-              <span>导出为 SVG 矢量图</span>
-            </button>
+            {displaySVG && (
+              <button
+                onClick={exportAsSVG}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors border-t border-white/5"
+              >
+                <FileText size={16} style={{ color: colors.glacier }} />
+                <span>导出为 SVG 矢量图</span>
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
