@@ -10,6 +10,7 @@ import {
   Globe2,
   FileBarChart,
   Download,
+  FileText,
   CircleDot,
 } from 'lucide-react';
 import { colors } from '../../utils/colors';
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/correlation', label: '相关性分析', icon: ScatterChart, color: colors.forest },
   { to: '/extreme-weather', label: '极端天气', icon: CloudLightning, color: colors.warning },
   { to: '/scenarios', label: '情景预测', icon: Globe2, color: colors.warning },
+  { to: '/report', label: '报告生成', icon: FileText, color: colors.scenarios['SSP2-4.5'] },
   { to: '/export', label: '数据导出', icon: Download, color: colors.glacier },
 ];
 

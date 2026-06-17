@@ -44,17 +44,27 @@ export const exportClimateChartAsPNG = (filename: string = 'global-climate-data'
   const seaLevelData = climateData.map(d => [d.year, d.seaLevel] as [number, number]);
   const seaIceData = climateData.map(d => [d.year, d.seaIce] as [number, number]);
 
+  const gridTop = 80;
+  const gridBottom = 50;
+  const chartHeight = 220;
+  const gap = 60;
+
   const option: EChartsOption = {
     ...chartBaseConfig,
     title: {
       text: '全球气候变化趋势 (1850-2024)',
+      subtext: '温度异常 · CO₂浓度 · 海平面变化 · 海冰面积',
       left: 'center',
       top: 10,
       textStyle: {
         color: '#fff',
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: 'bold',
         fontFamily: "'Space Grotesk', sans-serif",
+      },
+      subtextStyle: {
+        color: '#94A3B8',
+        fontSize: 13,
       },
     },
     tooltip: {
@@ -63,49 +73,131 @@ export const exportClimateChartAsPNG = (filename: string = 'global-climate-data'
     },
     legend: {
       ...legendConfig,
-      data: ['温度异常 (°C)', 'CO₂浓度 (ppm)', '海平面变化 (mm)', '海冰面积 (百万km²)'],
-      top: 40,
+      data: ['温度异常', 'CO₂浓度', '海平面变化', '海冰面积'],
+      top: 55,
     },
-    grid: {
-      left: 60,
-      right: 60,
-      top: 100,
-      bottom: 60,
-    },
-    xAxis: {
-      ...axisConfig.xAxis,
-      type: 'value' as const,
-      name: '年份',
-      min: 1850,
-      max: 2024,
-    },
+    grid: [
+      {
+        left: 80,
+        right: 60,
+        top: gridTop,
+        height: chartHeight,
+      },
+      {
+        left: 80,
+        right: 60,
+        top: gridTop + chartHeight + gap,
+        height: chartHeight,
+      },
+      {
+        left: 80,
+        right: 60,
+        top: gridTop + 2 * (chartHeight + gap),
+        height: chartHeight,
+      },
+      {
+        left: 80,
+        right: 60,
+        top: gridTop + 3 * (chartHeight + gap),
+        height: chartHeight,
+      },
+    ],
+    xAxis: [
+      {
+        ...axisConfig.xAxis,
+        type: 'value' as const,
+        gridIndex: 0,
+        min: 1850,
+        max: 2024,
+        axisLabel: { show: false },
+      },
+      {
+        ...axisConfig.xAxis,
+        type: 'value' as const,
+        gridIndex: 1,
+        min: 1850,
+        max: 2024,
+        axisLabel: { show: false },
+      },
+      {
+        ...axisConfig.xAxis,
+        type: 'value' as const,
+        gridIndex: 2,
+        min: 1850,
+        max: 2024,
+        axisLabel: { show: false },
+      },
+      {
+        ...axisConfig.xAxis,
+        type: 'value' as const,
+        gridIndex: 3,
+        min: 1850,
+        max: 2024,
+        name: '年份',
+        nameTextStyle: { color: '#94A3B8', fontSize: 12 },
+      },
+    ],
     yAxis: [
       {
         ...axisConfig.yAxis,
         type: 'value' as const,
-        name: '温度异常 (°C)',
-        position: 'left' as const,
+        gridIndex: 0,
+        name: '温度异常\n(°C)',
+        nameTextStyle: { color: colors.accent, fontSize: 11 },
+        axisLabel: { color: colors.accent, fontSize: 10 },
       },
       {
         ...axisConfig.yAxis,
         type: 'value' as const,
-        name: 'CO₂浓度 (ppm)',
-        position: 'right' as const,
+        gridIndex: 1,
+        name: 'CO₂浓度\n(ppm)',
+        nameTextStyle: { color: colors.glacier, fontSize: 11 },
+        axisLabel: { color: colors.glacier, fontSize: 10 },
+      },
+      {
+        ...axisConfig.yAxis,
+        type: 'value' as const,
+        gridIndex: 2,
+        name: '海平面\n(mm)',
+        nameTextStyle: { color: colors.forest, fontSize: 11 },
+        axisLabel: { color: colors.forest, fontSize: 10 },
+      },
+      {
+        ...axisConfig.yAxis,
+        type: 'value' as const,
+        gridIndex: 3,
+        name: '海冰面积\n(百万km²)',
+        nameTextStyle: { color: colors.scenarios['SSP1-2.6'], fontSize: 11 },
+        axisLabel: { color: colors.scenarios['SSP1-2.6'], fontSize: 10 },
+        inverse: true,
       },
     ],
     series: [
       {
-        ...getLineSeriesConfig('温度异常 (°C)', tempData, colors.accent, false),
+        ...getLineSeriesConfig('温度异常', tempData, colors.accent, true),
+        xAxisIndex: 0,
         yAxisIndex: 0,
+        markLine: { data: [baselineMarkLine.data[0]] },
       },
       {
-        ...getLineSeriesConfig('CO₂浓度 (ppm)', co2Data, colors.glacier, false),
+        ...getLineSeriesConfig('CO₂浓度', co2Data, colors.glacier, true),
+        xAxisIndex: 1,
         yAxisIndex: 1,
+      },
+      {
+        ...getLineSeriesConfig('海平面变化', seaLevelData, colors.forest, true),
+        xAxisIndex: 2,
+        yAxisIndex: 2,
+      },
+      {
+        ...getLineSeriesConfig('海冰面积', seaIceData, colors.scenarios['SSP1-2.6'], true),
+        xAxisIndex: 3,
+        yAxisIndex: 3,
       },
     ],
   };
 
-  const dataUrl = createChartCanvas(option, 1400, 800);
+  const dataUrl = createChartCanvas(option, 1400, 1200);
   downloadDataUrl(dataUrl, `${filename}.png`);
 };
 

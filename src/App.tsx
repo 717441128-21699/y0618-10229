@@ -7,6 +7,7 @@ import { CorrelationView } from "./pages/CorrelationView";
 import { ExtremeWeatherView } from "./pages/ExtremeWeatherView";
 import { ScenariosView } from "./pages/ScenariosView";
 import { ExportCenter } from "./pages/ExportCenter";
+import { ReportBuilder } from "./pages/ReportBuilder";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/extreme-weather" element={<ExtremeWeatherView />} />
           <Route path="/scenarios" element={<ScenariosView />} />
           <Route path="/export" element={<ExportCenter />} />
+          <Route path="/report" element={<ReportBuilder />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
